@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
   PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
@@ -39,7 +39,7 @@ jobs:
             -var="region=us-east-1" \
             -var="public_key=$PUBLIC_SSH_KEY" \
             -var="private_key=$PRIVATE_SSH_KEY" \
-            -var="key_name=us-east" \
+            -var="key_name=deployer-key" \
             -out=PLAN
         working-directory: ./terraform
 
@@ -89,13 +89,13 @@ jobs:
           host: ${{ env.SERVER_PUBLIC_IP }}
           username: ubuntu
           key: ${{ env.PRIVATE_SSH_KEY }}
-          port: 22
           script: |
             sudo apt update
-            sudo apt install docker.io -y
-            sudo apt install awscli -y
+            sudo apt install -y docker.io awscli
+            sudo usermod -aG docker ubuntu
+            newgrp docker
             eval $(aws ecr get-login --no-include-email --region us-east-1)
-            sudo docker stop myappcontainer || true
-            sudo docker rm myappcontainer || true
-            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            docker stop myappcontainer || true
+            docker rm myappcontainer || true
+            docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
