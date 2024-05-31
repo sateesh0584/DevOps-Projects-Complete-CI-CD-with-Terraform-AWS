@@ -17,7 +17,7 @@ jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     outputs:
-      SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip}}
+      SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -35,12 +35,12 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan -destroy \
-          -var="region=us-east-1" \
-          -var="public_key=$PUBLIC_SSH_KEY" \
-          -var="private_key=$PRIVATE_SSH_KEY" \
-          -var="key_name=deployer-key" \
-          -out=PLAN
+          terraform plan \
+            -var="region=us-east-1" \
+            -var="public_key=$PUBLIC_SSH_KEY" \
+            -var="private_key=$PRIVATE_SSH_KEY" \
+            -var="key_name=deployer-key" \
+            -out=PLAN
         working-directory: ./terraform
 
       - name: Terraform Apply
@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set IP Environment Variable
-        run: echo SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
+        run: echo "SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }}" >> $GITHUB_ENV
 
       - name: Login to AWS ECR
         id: login-ecr
