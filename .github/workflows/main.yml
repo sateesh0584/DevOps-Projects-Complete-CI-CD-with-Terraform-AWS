@@ -1,12 +1,11 @@
 name: CI/CD with Terraform
-
 on:
   push:
     branches:
       - main
 
 env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
   PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
@@ -21,37 +20,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
           terraform_wrapper: false
-
       - name: Terraform Init
         id: init
-        run: terraform init -backend-config="bucket=$TF_STATE_BUCKET_NAME" -backend-config="region=us-east-1"
+        run: terraform init -backend-config="bucket=${TF_STATE_BUCKET_NAME}" -backend-config="region=us-east-1"
         working-directory: ./terraform
-
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan \
-            -var="region=us-east-1" \
-            -var="public_key=$PUBLIC_SSH_KEY" \
-            -var="private_key=$PRIVATE_SSH_KEY" \
-            -var="key_name=deployer-key" \
-            -out=PLAN
+          terraform plan -destroy \
+          -var="region=us-east-1" \
+          -var="public_key=${PUBLIC_SSH_KEY}" \
+          -var="private_key=${PRIVATE_SSH_KEY}" \
+          -var="key_name=deployer-key" \
+          -out=PLAN
         working-directory: ./terraform
-
       - name: Terraform Apply
         id: apply
         run: terraform apply PLAN
         working-directory: ./terraform
-
-      - name: Set Output
+      - name: Set output
         id: set-ip
         run: |
-          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+          echo "::set-output name=instance_public_ip::$(terraform output instance_public_ip)"
         working-directory: ./terraform
 
   deploy-app:
@@ -60,14 +54,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-
-      - name: Set IP Environment Variable
-        run: echo "SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }}" >> $GITHUB_ENV
-
+      - name: Set IP env variable
+        run: echo SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }} >> $GITHUB_ENV
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-
       - name: Build and Push Docker Image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -77,7 +68,6 @@ jobs:
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
         working-directory: ./nodeapp
-
       - name: Deploy Docker Image to EC2
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -98,4 +88,4 @@ jobs:
             docker stop myappcontainer || true
             docker rm myappcontainer || true
             docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            docker run -d --name myappcontainer -p 80:8080 ${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}
