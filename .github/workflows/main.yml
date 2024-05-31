@@ -95,7 +95,7 @@ jobs:
             sudo apt install docker.io -y
             sudo apt install awscli -y
             eval $(aws ecr get-login --no-include-email --region us-east-1)
-            sudo service docker start  # Start Docker service
+            sudo service docker restart  # Restart Docker service to apply group changes
             sudo usermod -aG docker $USER  # Add current user to docker group
             sudo docker stop myappcontainer || true
             sudo docker rm myappcontainer || true
