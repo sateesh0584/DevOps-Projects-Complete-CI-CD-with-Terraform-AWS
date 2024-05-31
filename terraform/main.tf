@@ -6,7 +6,9 @@ terraform {
     }
   }
   backend "s3" {
-    key = "aws/sateesh1075/terraform.tfstate"
+    bucket = "sateesh1075" 
+    key = "CI/CD/terraform.tfstate"
+    region = "us-east-1"  
   }
 }
 
