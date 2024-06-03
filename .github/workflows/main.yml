@@ -94,10 +94,10 @@ jobs:
             sudo apt update
             sudo apt install docker.io -y
             sudo apt install awscli -y
-            eval $(aws ecr get-login --no-include-email --region us-east-1)
-            sudo service docker restart  # Restart Docker service to apply group changes
             sudo usermod -aG docker $USER  # Add current user to docker group
-            sudo docker stop myappcontainer || true
-            sudo docker rm myappcontainer || true
-            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            newgrp docker  # Refresh group membership
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ env.REGISTRY }}
+            docker stop myappcontainer || true
+            docker rm myappcontainer || true
+            docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
