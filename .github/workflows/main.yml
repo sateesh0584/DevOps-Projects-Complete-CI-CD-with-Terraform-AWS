@@ -1,117 +1,35 @@
-name: CI/CD with Terraform
-
-on:
-  push:
-    branches:
-      - main
-
-env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
-  PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
-  PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PUBLIC }}
-  AWS_REGION: us-east-1
-
-jobs:
-  deploy-infra:
-    runs-on: ubuntu-latest
-    outputs:
-      SERVER_PUBLIC_IP: ${{ steps.set-ip.outputs.instance_public_ip }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
-        with:
-          terraform_wrapper: false
-
-      - name: Terraform Init
-        id: init
-        run: terraform init -backend-config="bucket=$TF_STATE_BUCKET_NAME" -backend-config="region=us-east-1"
-        working-directory: ./terraform
-
-      - name: Terraform Plan
-        id: plan
-        run: |
-          terraform plan \
-            -var="region=us-east-1" \
-            -var="public_key=$PUBLIC_SSH_KEY" \
-            -var="private_key=$PRIVATE_SSH_KEY" \
-            -var="key_name=deployer-key" \
-            -out=PLAN
-        working-directory: ./terraform
-
-      - name: Terraform Apply
-        id: apply
-        run: terraform apply PLAN
-        working-directory: ./terraform
-
-      - name: Set Output
-        id: set-ip
-        run: |
-          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
-        working-directory: ./terraform
-
-  deploy-app:
-    runs-on: ubuntu-latest
-    needs: deploy-infra
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Set IP Environment Variable
-        run: echo "SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }}" >> $GITHUB_ENV
-
-      - name: Login to AWS ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Debug ECR Login Output
-        run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
-
-      - name: Build and Push Docker Image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: example-node-app
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-        working-directory: ./nodeapp
-
-      - name: Debug Environment Variables
-        run: |
-          echo "Registry: $REGISTRY"
-          echo "Repository: example-node-app"
-          echo "Image Tag: $IMAGE_TAG"
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: example-node-app
-          IMAGE_TAG: ${{ github.sha }}
-
-      - name: Deploy Docker Image to EC2
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: example-node-app
-          IMAGE_TAG: ${{ github.sha }}
-          AWS_DEFAULT_REGION: us-east-1
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ env.SERVER_PUBLIC_IP }}
-          username: ubuntu
-          key: ${{ env.PRIVATE_SSH_KEY }}
-          port: 22
-          script: |
-            set -x  # Enable debugging
-            sudo apt update
-            sudo apt install docker.io -y
-            sudo apt install awscli -y
-            echo "Registry: $REGISTRY"
-            echo "Repository: $REPOSITORY"
-            echo "Image Tag: $IMAGE_TAG"
-            eval $(aws ecr get-login --no-include-email --region us-east-1)
-            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            set +x  # Disable debugging
+err: WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+out: Reading package lists...
+out: Building dependency tree...
+out: Reading state information...
+out: docker.io is already the newest version (24.0.5-0ubuntu1~22.04.1).
+out: 0 upgraded, 0 newly installed, 0 to remove and 16 not upgraded.
+err: + sudo apt install awscli -y
+err: WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+out: Reading package lists...
+out: Building dependency tree...
+out: Reading state information...
+out: awscli is already the newest version (1.22.34-1).
+out: 0 upgraded, 0 newly installed, 0 to remove and 16 not upgraded.
+err: + echo 'Registry: '
+err: + echo 'Repository: '
+err: + echo 'Image Tag: '
+out: Registry: 
+out: Repository: 
+out: Image Tag: 
+err: ++ aws ecr get-login --no-include-email --region us-east-1
+err: + eval docker login -u AWS -p eyJwYXlsb2FkIjoiVzNyWXduU0ljb0Z3U3BQUW9uWVRaa3RRbmdqZzViY0NkR0RoUTNBYTVRZi9nR2t0aWpCMTFDYmI5ZGVGcHpubVg4dkJCVGNRT29WYnB3TE9nQWpCbVZGY2VCazdPa3ZkWjFYdW12c0s5aWsrRHJPa0hycGxhWjZSQzdLMGwrNXN2UmNlenRpK3djY2tKUGxUTFdWaWpUclp1RWRYYmNCQ3h3V0YxNGJVVXhJMFRlanVpTkNEMERYZFdjd1VOWWlLRk4zcktvYmtTalhZdWdxV2tQTXZEanVYeEhtVHBRM1cxaFVCWGEvS2Q1SkFJYXRNWHNKdlBZL2xaMGZZZ1lNa1NoK2Ywd1E5cHpUd1Z6M0dLNHFUdkFIeTlOaWZldE9CdURzdkU4VWNUT05HR3NqdXUyU1hXd0EzN0hhclVvQjZ1MW9aSXlPN2xodDMzMkptNWkwaWVKNHNPb2hnUkQxYXYwSi9WQkdEaU9YZ0JFQTh3cW1BZGdRaTNVZEFjaTNKUGRNMURUNThhN3VtNkhUYml6OFlwZjBhUWtXRW0zaHpuTEMxdElEb1Q5ZDBDRmFFOHpwa3hURUlFeG5oc3JsUmhkODgxNHpoWm5kTE1YQjI1TGRYZjFCc01DWU9OSVJpa1B4cHl3dXJDNGlqazdPVjRTK1RQbXRueDkxL3E0Y0h4Y0RzYzJRajRRWUtNRkdoZWZjRlprTGRuOWZnY1kzN2phNlBBbkpmNkdiR2QydTFvbFVPbUxLeGQzOE9ycE1iK05CbHpFNVc3OXdwTkUzdFZOTi9KeC9Pa3MxUzZNRyt4Y3UxYUNZbUhoK3ZZNGhJUDg5TERCTG9nQllRd0x0RHBzbDBZSmZIMzlDamN4RTdMZjRwaE03OHdpV3pRa2Y4dVNSazRDaWFWbkt4b2xVbUZWdXdMQWlkRGUxMVhmWEVBY2c5MW9Cbko1Vmh3YXhLTHVRd0NOTUNnN
+err: ++ docker login -u AWS -p eyJwYXlsb2FkIjoiVzNyWXduU0ljb0Z3U3BQUW9uWVRaa3RRbmdqZzViY0NkR0RoUTNBYTVRZi9nR2t0aWpCMTFDYmI5ZGVGcHpubVg4dkJCVGNRT29WYnB3TE9nQWpCbVZGY2VCazdPa3ZkWjFYdW12c0s5aWsrRHJPa0hycGxhWjZSQzdLMGwrNXN2UmNlenRpK3djY2tKUGxUTFdWaWpUclp1RWRYYmNCQ3h3V0YxNGJVVXhJMFRlanVpTkNEMERYZFdjd1VOWWlLRk4zcktvYmtTalhZdWdxV2tQTXZEanVYeEhtVHBRM1cxaFVCWGEvS2Q1SkFJYXRNWHNKdlBZL2xaMGZZZ1lNa1NoK2Ywd1E5cHpUd1Z6M0dLNHFUdkFIeTlOaWZldE9CdURzdkU4VWNUT05HR3NqdXUyU1hXd0EzN0hhclVvQjZ1MW9aSXlPN2xodDMzMkptNWkwaWVKNHNPb2hnUkQxYXYwSi9WQkdEaU9YZ0JFQTh3cW1BZGdRaTNVZEFjaTNKUGRNMURUNThhN3VtNkhUYml6OFlwZjBhUWtXRW0zaHpuTEMxdElEb1Q5ZDBDRmFFOHpwa3hURUlFeG5oc3JsUmhkODgxNHpoWm5kTE1YQjI1TGRYZjFCc01DWU9OSVJpa1B4cHl3dXJDNGlqazdPVjRTK1RQbXRueDkxL3E0Y0h4Y0RzYzJRajRRWUtNRkdoZWZjRlprTGRuOWZnY1kzN2phNlBBbkpmNkdiR2QydTFvbFVPbUxLeGQzOE9ycE1iK05CbHpFNVc3OXdwTkUzdFZOTi9KeC9Pa3MxUzZNRyt4Y3UxYUNZbUhoK3ZZNGhJUDg5TERCTG9nQllRd0x0RHBzbDBZSmZIMzlDamN4RTdMZjRwaE03OHdpV3pRa2Y4dVNSazRDaWFWbkt4b2xVbUZWdXdMQWlkRGUxMVhmWEVBY2c5MW9Cbko1Vmh3YXhLTHVRd0NOTUNnN3FNR
+err: WARNING! Using --password via the CLI is insecure. Use --password-stdin.
+err: WARNING! Your password will be stored unencrypted in /home/ubuntu/.docker/config.json.
+err: Configure a credential helper to remove this warning. See
+err: https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+out: Login Succeeded
+err: + sudo docker pull /:
+err: invalid reference format
+err: + sudo docker run -d --name myappcontainer -p 80:8080 /:
+err: docker: invalid reference format.
+err: See 'docker run --help'.
+err: + set +x
+==============================================
+✅ Successfully executed commands to all host.
