@@ -97,7 +97,8 @@ jobs:
             sudo usermod -aG docker $USER  # Add current user to docker group
             newgrp docker  # Refresh group membership
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ env.REGISTRY }}
-            docker stop myappcontainer || true
-            docker rm myappcontainer || true
             docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
             docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            docker stop myappcontainer || true
+            docker rm myappcontainer || true
+            
