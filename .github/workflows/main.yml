@@ -6,6 +6,11 @@ on:
       - main
 
 env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
+  PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
+  PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_PUBLIC }}
   AWS_REGION: us-east-1
 
 jobs:
@@ -24,7 +29,7 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: terraform init -backend-config="bucket=${{ secrets.AWS_TF_STATE_BUCKET_NAME }}" -backend-config="region=us-east-1"
+        run: terraform init -backend-config="bucket=$TF_STATE_BUCKET_NAME" -backend-config="region=us-east-1"
         working-directory: ./terraform
 
       - name: Terraform Plan
@@ -32,8 +37,8 @@ jobs:
         run: |
           terraform plan \
             -var="region=us-east-1" \
-            -var="public_key=${{ secrets.AWS_SSH_KEY_PUBLIC }}" \
-            -var="private_key=${{ secrets.AWS_SSH_KEY_PRIVATE }}" \
+            -var="public_key=$PUBLIC_SSH_KEY" \
+            -var="private_key=$PRIVATE_SSH_KEY" \
             -var="key_name=deployer-key" \
             -out=PLAN
         working-directory: ./terraform
@@ -62,8 +67,6 @@ jobs:
       - name: Login to AWS ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-        with:
-          region: ${{ env.AWS_REGION }}
 
       - name: Debug ECR Login Output
         run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
@@ -98,7 +101,7 @@ jobs:
         with:
           host: ${{ env.SERVER_PUBLIC_IP }}
           username: ubuntu
-          key: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
+          key: ${{ env.PRIVATE_SSH_KEY }}
           port: 22
           script: |
             set -x  # Enable debugging
@@ -108,7 +111,7 @@ jobs:
             echo "Registry: $REGISTRY"
             echo "Repository: $REPOSITORY"
             echo "Image Tag: $IMAGE_TAG"
-            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin $REGISTRY
+            eval $(aws ecr get-login --no-include-email --region us-east-1)
             sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
             sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
             set +x  # Disable debugging
