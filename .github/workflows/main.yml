@@ -79,9 +79,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      - name: Debug ECR Login Output
-        run: echo "REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
-
       - name: Build and Push Docker Image
         env:
           REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
@@ -91,16 +88,6 @@ jobs:
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
         working-directory: ./nodeapp
-
-      - name: Debug Environment Variables
-        run: |
-          echo "Registry: $REGISTRY"
-          echo "Repository: example-node-app"
-          echo "Image Tag: $IMAGE_TAG"
-        env:
-          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-          REPOSITORY: example-node-app
-          IMAGE_TAG: ${{ github.sha }}
 
       - name: Deploy Docker Image to EC2
         env:
@@ -124,7 +111,7 @@ jobs:
             echo "Registry: $REGISTRY"
             echo "Repository: $REPOSITORY"
             echo "Image Tag: $IMAGE_TAG"
-            eval $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+            eval $(aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REGISTRY)
             sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
             sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
             set +x  # Disable debugging
