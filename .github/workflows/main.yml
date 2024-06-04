@@ -85,18 +85,21 @@ jobs:
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG ./nodeapp
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          working-directory: ./nodeapp
-          script: |
-            set -x  # Enable debugging
-            sudo apt update
-            sudo apt install docker.io -y
-            sudo apt install awscli -y
-            echo "Registry: $REGISTRY"
-            echo "Repository: $REPOSITORY"
-            echo "Image Tag: $IMAGE_TAG"
-            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $REGISTRY
-            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            
+
+      - name: Deploy Docker Container
+        env:
+          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          REPOSITORY: example-node-app
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          sudo apt update
+          sudo apt install docker.io -y
+          sudo apt install awscli -y
+          echo "Registry: $REGISTRY"
+          echo "Repository: $REPOSITORY"
+          echo "Image Tag: $IMAGE_TAG"
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
+          sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
