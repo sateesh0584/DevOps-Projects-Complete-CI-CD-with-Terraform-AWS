@@ -40,7 +40,7 @@ jobs:
             -var="region=${{ env.AWS_REGION }}" \
             -var="public_key=${{ secrets.AWS_SSH_PUBLIC }}" \
             -var="private_key=${{ secrets.AWS_SSH_KEY_PRIVATE }}" \
-            -var="key_name=deployer-key" \
+            -var="key_name=us-east" \
             -out=PLAN
         working-directory: ./terraform
 
