@@ -75,7 +75,10 @@ jobs:
       - name: Install AWS CLI and ECR Credential Helper
         run: |
           sudo apt-get update
-          sudo apt-get install -y awscli amazon-ecr-credential-helper
+          sudo apt-get install -y awscli
+          curl -Lo docker-credential-ecr-login https://github.com/awslabs/amazon-ecr-credential-helper/releases/latest/download/docker-credential-ecr-login-linux-amd64
+          chmod +x docker-credential-ecr-login
+          sudo mv docker-credential-ecr-login /usr/local/bin/docker-credential-ecr-login
           aws --version
           /usr/local/bin/docker-credential-ecr-login --version
 
