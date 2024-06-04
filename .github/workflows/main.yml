@@ -82,6 +82,9 @@ jobs:
           mkdir -p ~/.docker
           echo '{"credHelpers":{"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com":"ecr-login"}}' > ~/.docker/config.json
 
+      - name: Verify Docker Credential Helper Configuration
+        run: cat ~/.docker/config.json
+
       - name: Build and Push Docker Image
         working-directory: ./nodeapp
         env:
