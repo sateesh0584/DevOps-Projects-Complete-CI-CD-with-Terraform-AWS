@@ -74,16 +74,17 @@ jobs:
 
       - name: Login to AWS ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-        with:
-          aws-region: ${{ env.AWS_REGION }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
 
       - name: Debug ECR Login Output
-        run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+        run: echo "REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
 
       - name: Build and Push Docker Image
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -97,13 +98,13 @@ jobs:
           echo "Repository: example-node-app"
           echo "Image Tag: $IMAGE_TAG"
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
 
       - name: Deploy Docker Image to EC2
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
           AWS_DEFAULT_REGION: us-east-1
