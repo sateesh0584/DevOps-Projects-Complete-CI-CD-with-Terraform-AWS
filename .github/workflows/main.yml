@@ -6,6 +6,11 @@ on:
       - main
 
 env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
+  PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
+  PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PUBLIC }}
   AWS_REGION: us-east-1
 
 jobs:
@@ -18,48 +23,35 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v1
         with:
           terraform_wrapper: false
 
       - name: Terraform Init
         id: init
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: terraform init -backend-config="bucket=${{ secrets.AWS_TF_STATE_BUCKET_NAME }}" -backend-config="region=${{ env.AWS_REGION }}"
+        run: terraform init -backend-config="bucket=$TF_STATE_BUCKET_NAME" -backend-config="region=us-east-1"
         working-directory: ./terraform
 
       - name: Terraform Plan
         id: plan
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_PUBLIC }}
-          PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
         run: |
           terraform plan \
-            -var="region=${{ env.AWS_REGION }}" \
-            -var="public_key=${{ secrets.AWS_SSH_PUBLIC }}" \
-            -var="private_key=${{ secrets.AWS_SSH_KEY_PRIVATE }}" \
-            -var="key_name=us-east" \
+            -var="region=us-east-1" \
+            -var="public_key=$PUBLIC_SSH_KEY" \
+            -var="private_key=$PRIVATE_SSH_KEY" \
+            -var="key_name=deployer-key" \
             -out=PLAN
         working-directory: ./terraform
 
       - name: Terraform Apply
         id: apply
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: terraform apply PLAN
         working-directory: ./terraform
 
       - name: Set Output
         id: set-ip
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+        run: |
+          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
         working-directory: ./terraform
 
   deploy-app:
@@ -72,68 +64,38 @@ jobs:
       - name: Set IP Environment Variable
         run: echo "SERVER_PUBLIC_IP=${{ needs.deploy-infra.outputs.SERVER_PUBLIC_IP }}" >> $GITHUB_ENV
 
-      - name: Install AWS CLI and ECR Credential Helper
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
-          sudo apt-get install -y docker
-          curl -Lo docker-credential-ecr-login https://github.com/awslabs/amazon-ecr-credential-helper/releases/latest/download/docker-credential-ecr-login-linux-amd64
-          chmod +x docker-credential-ecr-login
-          sudo mv docker-credential-ecr-login /usr/local/bin/docker-credential-ecr-login
-          aws --version
-          /usr/local/bin/docker-credential-ecr-login --version
-
-      - name: Configure Docker to use ECR Credential Helper
-        run: |
-          mkdir -p ~/.docker
-          echo '{"credHelpers":{"${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com":"ecr-login"}}' > ~/.docker/config.json
-
-      - name: Verify Docker Credential Helper Configuration
-        run: cat ~/.docker/config.json
-
-      - name: Authenticate Docker with ECR
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+      - name: Login to AWS ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build and Push Docker Image
-        working-directory: ./nodeapp
         env:
-          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        working-directory: ./nodeapp
 
-      - name: Deploy Docker Container
+      - name: Deploy Docker Image to EC2
         env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
-        run: |
-          sudo apt-get remove -y docker docker.io containerd runc
-          sudo apt-get update
-          sudo apt-get install -y \
-              apt-transport-https \
-              ca-certificates \
-              curl \
-              gnupg \
-              lsb-release
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-          sudo apt-get install awscli -y
-          echo "Registry: $REGISTRY"
-          echo "Repository: $REPOSITORY"
-          echo "Image Tag: $IMAGE_TAG"
-          sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          AWS_DEFAULT_REGION: us-east-1
+        uses: appleboy/ssh-action@master   
+        with:
+          host: ${{ env.SERVER_PUBLIC_IP }}
+          username: ubuntu
+          key: ${{ env.PRIVATE_SSH_KEY }}
+          port: 22
+          script: |
+            sudo apt update
+            sudo apt install docker.io -y
+            sudo apt install awscli -y
+            eval $(aws ecr get-login --no-include-email --region us-east-1)
+            #sudo docker stop myappcontainer || true
+            #sudo docker rm myappcontainer || true
+            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
