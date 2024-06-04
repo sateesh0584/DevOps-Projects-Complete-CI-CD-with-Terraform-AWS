@@ -76,6 +76,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y awscli
+          sudo apt-get install -y docker
           curl -Lo docker-credential-ecr-login https://github.com/awslabs/amazon-ecr-credential-helper/releases/latest/download/docker-credential-ecr-login-linux-amd64
           chmod +x docker-credential-ecr-login
           sudo mv docker-credential-ecr-login /usr/local/bin/docker-credential-ecr-login
