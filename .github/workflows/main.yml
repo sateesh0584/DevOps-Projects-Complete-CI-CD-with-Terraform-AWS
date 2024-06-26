@@ -99,4 +99,8 @@ jobs:
             sudo aws configure set default.region us-east-1
             sudo aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }}
             sudo docker pull ${{ env.REGISTRY }}/example-node-app:${{ env.IMAGE_TAG }}
+            if [ "$(sudo docker ps -q -f name=myappcontainer)" ]; then
+              sudo docker stop myappcontainer
+              sudo docker rm myappcontainer
+            fi
             sudo docker run -d --name myappcontainer -p 80:8080 ${{ env.REGISTRY }}/example-node-app:${{ env.IMAGE_TAG }}
