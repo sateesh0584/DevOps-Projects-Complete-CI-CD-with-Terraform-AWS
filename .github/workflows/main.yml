@@ -29,27 +29,23 @@ jobs:
 
       - name: Terraform Init
         id: init
-        run: |
-          terraform init \
-            -backend-config="bucket=${TF_STATE_BUCKET_NAME}" \
-            -backend-config="region=${AWS_REGION}"
+        run: terraform init -backend-config="bucket=$TF_STATE_BUCKET_NAME" -backend-config="region=us-east-1"
         working-directory: ./terraform
 
       - name: Terraform Plan
         id: plan
         run: |
           terraform plan \
-            -var="region=${AWS_REGION}" \
-            -var="public_key=${PUBLIC_SSH_KEY}" \
-            -var="private_key=${PRIVATE_SSH_KEY}" \
+            -var="region=us-east-1" \
+            -var="public_key=$PUBLIC_SSH_KEY" \
+            -var="private_key=$PRIVATE_SSH_KEY" \
             -var="key_name=deployer-key" \
             -out=PLAN
         working-directory: ./terraform
 
       - name: Terraform Apply
         id: apply
-        run: |
-          terraform apply PLAN -auto-approve
+        run: terraform apply PLAN
         working-directory: ./terraform
 
       - name: Set Output
@@ -78,14 +74,16 @@ jobs:
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG ./nodeapp
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+        working-directory: ./nodeapp
 
       - name: Deploy Docker Image to EC2
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
+          AWS_DEFAULT_REGION: us-east-1
         uses: appleboy/ssh-action@master   
         with:
           host: ${{ env.SERVER_PUBLIC_IP }}
