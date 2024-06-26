@@ -80,20 +80,23 @@ jobs:
 
       - name: Deploy Docker Image to EC2
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: example-node-app
-          IMAGE_TAG: ${{ github.sha }}
-          AWS_DEFAULT_REGION: us-east-1
-        uses: appleboy/ssh-action@master   
+         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+         REPOSITORY: example-node-app
+         IMAGE_TAG: ${{ github.sha }}
+         AWS_DEFAULT_REGION: us-east-1
+         uses: appleboy/ssh-action@master   
         with:
-          host: ${{ env.SERVER_PUBLIC_IP }}
-          username: ubuntu
-          key: ${{ env.PRIVATE_SSH_KEY }}
-          port: 22
-          script: |
-            sudo apt update
-            sudo apt install docker.io -y
-            sudo apt install awscli -y
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 187392167468.dkr.ecr.us-east-1.amazonaws.com
-            sudo docker pull  187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
-            sudo docker run -d --name myappcontainer -p 80:8080 docker push 187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
+               host: ${{ env.SERVER_PUBLIC_IP }}
+               username: ubuntu
+               key: ${{ env.PRIVATE_SSH_KEY }}
+               port: 22
+               script: |
+                    sudo apt update
+                    sudo apt install docker.io -y
+                    sudo apt install awscli -y
+                    sudo aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+                    sudo aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                    sudo aws configure set default.region us-east-1
+                    sudo aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }}
+                    sudo docker pull ${{ env.REGISTRY }}/example-node-app:${{ env.IMAGE_TAG }}
+                    sudo docker run -d --name myappcontainer -p 80:8080 ${{ env.REGISTRY }}/example-node-app:${{ env.IMAGE_TAG }}
