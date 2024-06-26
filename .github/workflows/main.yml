@@ -12,7 +12,7 @@ env:
   PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
   PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PUBLIC }}
   AWS_REGION: us-east-1  
-
+ 
 jobs:
   deploy-infra:
     runs-on: ubuntu-latest
@@ -91,23 +91,9 @@ jobs:
           key: ${{ env.PRIVATE_SSH_KEY }}
           port: 22
           script: |
-            # Print environment variables for debugging
-            printenv
-
-            # Install necessary packages
             sudo apt update
             sudo apt install docker.io -y
             sudo apt install awscli -y
-
-            # Configure AWS CLI credentials
-            mkdir -p ~/.aws
-            echo "[default]" > ~/.aws/credentials
-            echo "aws_access_key_id = $AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
-            echo "aws_secret_access_key = $AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
-
-            # Login to ECR
-            aws ecr get-login-password --region $AWS_DEFAULT_REGION | sudo docker login --username AWS --password-stdin $REGISTRY
-
-            # Pull and run the Docker image
-            sudo docker pull $REGISTRY/$REPOSITORY:$IMAGE_TAG
-            sudo docker run -d --name myappcontainer -p 80:8080 $REGISTRY/$REPOSITORY:$IMAGE_TAG
+            aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin ${{ env.REGISTRY }}
+            sudo docker pull ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
+            sudo docker run -d --name myappcontainer -p 80:8080 ${{ env.REGISTRY }}/${{ env.REPOSITORY }}:${{ env.IMAGE_TAG }}
