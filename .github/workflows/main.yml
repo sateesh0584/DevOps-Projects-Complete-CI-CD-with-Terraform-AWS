@@ -10,10 +10,10 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   TF_STATE_BUCKET_NAME: ${{ secrets.AWS_TF_STATE_BUCKET_NAME }}
   PRIVATE_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PRIVATE }}
-  PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PUBLIC }} 
+  PUBLIC_SSH_KEY: ${{ secrets.AWS_SSH_KEY_PUBLIC }}
   AWS_REGION: us-east-1
 
-jobs: 
+jobs:
   deploy-infra:
     runs-on: ubuntu-latest
     outputs:
