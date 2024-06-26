@@ -74,9 +74,7 @@ jobs:
           REPOSITORY: example-node-app
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building Docker Image..."
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-          echo "Pushing Docker Image..."
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
         working-directory: ./nodeapp
 
@@ -93,16 +91,9 @@ jobs:
           key: ${{ env.PRIVATE_SSH_KEY }}
           port: 22
           script: |
-            echo "Updating packages..."
             sudo apt update
             sudo apt install docker.io -y
             sudo apt install awscli -y
-            echo "Logging in to ECR..."
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 187392167468.dkr.ecr.us-east-1.amazonaws.com
-            echo "Pulling Docker Image..."
-            sudo docker pull 187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
-            echo "Stopping and removing old container if exists..."
-            sudo docker stop myappcontainer || true
-            sudo docker rm myappcontainer || true
-            echo "Running new container..."
-            sudo docker run -d --name myappcontainer -p 80:8080 187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
+            sudo docker pull  187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
+            sudo docker run -d --name myappcontainer -p 80:8080 docker push 187392167468.dkr.ecr.us-east-1.amazonaws.com/example-node-app:latest
