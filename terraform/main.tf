@@ -9,7 +9,7 @@ terraform {
     bucket = "sateesh584" 
     key    = "CI/CD/terraform.tfstate" 
     region = "us-east-1"  
-  }
+  } 
 }
 
 provider "aws" {
